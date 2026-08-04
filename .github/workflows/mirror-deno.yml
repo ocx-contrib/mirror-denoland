@@ -6,7 +6,7 @@ name: deno
 
 on:
   schedule:
-    - cron: '57 */6 * * *'
+    - cron: '29 4-23/6 * * *'
   workflow_dispatch:
   push:
     branches: [main]
