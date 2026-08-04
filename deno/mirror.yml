@@ -92,10 +92,10 @@ assets:
     - "^deno-x86_64-unknown-linux-gnu\\.zip$"
   "linux/arm64+libc.glibc":
     - "^deno-aarch64-unknown-linux-gnu\\.zip$"
-  # darwin/amd64:
-  #   - "^deno-x86_64-apple-darwin\\.zip$"
-  # darwin/arm64:
-  #   - "^deno-aarch64-apple-darwin\\.zip$"
+  darwin/amd64:
+    - "^deno-x86_64-apple-darwin\\.zip$"
+  darwin/arm64:
+    - "^deno-aarch64-apple-darwin\\.zip$"
   # windows/amd64:
   #   - "^deno-x86_64-pc-windows-msvc\\.zip$"
   # windows/arm64:
@@ -156,14 +156,14 @@ platforms:
     containers:
       - { image: "ubuntu:24.04", shell: bash }
       - { image: "fedora:40",    shell: bash }
-  # darwin/amd64:
-  #   # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 —
-  #   # GitHub's native macos-13 Intel pool is exhausted and deadlocks push.
-  #   runner: macos-14
-  #   prefix: ["arch", "-x86_64"]
-  # darwin/arm64:
-  #   runner: macos-14
-  #   shell: bash
+  darwin/amd64:
+    # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 —
+    # GitHub's native macos-13 Intel pool is exhausted and deadlocks push.
+    runner: macos-14
+    prefix: ["arch", "-x86_64"]
+  darwin/arm64:
+    runner: macos-14
+    shell: bash
   # windows/amd64:
   #   runner: windows-latest
   #   shell: pwsh
