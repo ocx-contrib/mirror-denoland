@@ -96,10 +96,10 @@ assets:
     - "^deno-x86_64-apple-darwin\\.zip$"
   darwin/arm64:
     - "^deno-aarch64-apple-darwin\\.zip$"
-  # windows/amd64:
-  #   - "^deno-x86_64-pc-windows-msvc\\.zip$"
-  # windows/arm64:
-  #   - "^deno-aarch64-pc-windows-msvc\\.zip$"
+  windows/amd64:
+    - "^deno-x86_64-pc-windows-msvc\\.zip$"
+  windows/arm64:
+    - "^deno-aarch64-pc-windows-msvc\\.zip$"
 
 asset_type:
   # Every one of the six zips holds EXACTLY ONE member and no directory:
@@ -164,13 +164,13 @@ platforms:
   darwin/arm64:
     runner: macos-14
     shell: bash
-  # windows/amd64:
-  #   runner: windows-latest
-  #   shell: pwsh
-  # windows/arm64:
-  #   # Native arm64 Windows runner — the amd64 pool cannot execute an ARM64 PE.
-  #   runner: windows-11-arm
-  #   shell: pwsh
+  windows/amd64:
+    runner: windows-latest
+    shell: pwsh
+  windows/arm64:
+    # Native arm64 Windows runner — the amd64 pool cannot execute an ARM64 PE.
+    runner: windows-11-arm
+    shell: pwsh
   # No `containers:` on darwin or windows — those runners have no Linux
   # container engine, and the key is rejected at spec load.
 
