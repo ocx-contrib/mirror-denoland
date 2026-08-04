@@ -1,0 +1,187 @@
+extends: ../mirror-base.yml
+
+name: deno
+
+# Logical index package `denoland/deno` at the physical path
+# `ghcr.io/ocx-contrib/denoland/deno` — slash segments, never hyphen-flattened.
+# The first segment must be this repo's own GitHub owner: GITHUB_TOKEN only
+# authorises packages owned by the repo the workflow runs in.
+#
+# Namespace rule 2 (the org IS the project's own brand): upstream is the GitHub
+# org `denoland`, whose sole product is Deno, and the tool publishes itself as
+# `deno`. Provenance is recorded in the index claim's `upstream:` block, not in
+# the namespace.
+target:
+  registry: ghcr.io
+  repository: ocx-contrib/denoland/deno
+
+source:
+  type: github_release
+  owner: denoland
+  repo: deno
+  # Bare `vX.Y.Z` only. Upstream tags nothing else on this repo in range.
+  tag_pattern: "^v(?P<version>\\d+\\.\\d+\\.\\d+)$"
+
+# ─── libc gate (Phase 3.5) — the evidence, not the conclusion ───────────────
+#
+# MEASURED on the v2.9.4 Linux assets, not inferred from the absence of a musl
+# artifact:
+#
+#   $ file deno            # deno-x86_64-unknown-linux-gnu.zip
+#   ELF 64-bit LSB pie executable, x86-64, dynamically linked,
+#     interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, stripped
+#   $ file deno            # deno-aarch64-unknown-linux-gnu.zip
+#   ELF 64-bit LSB pie executable, ARM aarch64, dynamically linked,
+#     interpreter /lib/ld-linux-aarch64.so.1, for GNU/Linux 3.7.0, stripped
+#   $ readelf -d deno | grep NEEDED
+#     x86_64:  libdl.so.2 libgcc_s.so.1 librt.so.1 libpthread.so.0 libm.so.6
+#              libc.so.6 ld-linux-x86-64.so.2
+#     aarch64: libdl.so.2 libgcc_s.so.1 libpthread.so.0 libm.so.6 libc.so.6
+#              ld-linux-aarch64.so.1
+#   $ readelf -V deno | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+#     GLIBC_2.27   (identical on BOTH arches — measured per arch, not assumed:
+#                   the glibc floor is routinely asymmetric across toolchains)
+#
+# Both Linux binaries carry a PT_INTERP naming a GNU loader and DT_NEEDED
+# libc.so.6, so each REQUIRES a glibc userland — hence `+libc.glibc` on both
+# the assets: and the platforms: key. Not UPX-packed (0 `^UPX` strings, section
+# headers present at a non-zero offset), so `file`'s answer is trustworthy here
+# rather than a packer stub's.
+#
+# Cross-checked by RUNNING the artifact, which is the decisive test:
+#   ubuntu:24.04  →  `deno eval "console.log(1+1)"` printed 2, exit 0
+#   fedora:40     →  printed 2, exit 0
+#   alpine:3.20   →  `sh: /m/deno: not found`  (the musl loader's message for a
+#                    glibc-dynamic ELF — NOT a missing file)
+# So the `alpine:3.20` leg is deliberately ABSENT from `platforms:` below: it
+# would red, correctly, and a `+libc.glibc` key has nothing to prove there.
+# ubuntu:24.04 (glibc 2.39) and fedora:40 (glibc 2.39) both clear the measured
+# GLIBC_2.27 floor, and both ship libgcc_s.so.1 and librt.so.1 in the stock
+# image — proven by the successful runs above, which is why no
+# `containers[].setup` line is needed.
+#
+# Upstream ships NO musl build for deno at any version, so there is no second
+# key to split against.
+#
+# ─── Asset-family anchoring ────────────────────────────────────────────────
+#
+# Three deno-prefixed asset families ship from the SAME release for the SAME
+# six triples, and `deno` is a literal substring of `denort`:
+#   deno-<triple>.zip       ← the CLI. what this mirror carries.
+#   denort-<triple>.zip     ← the standalone runtime `deno compile` embeds
+#   libdenort-<triple>.zip  ← the FFI/C-library form of that runtime
+# Every pattern below is fully anchored `^deno-…\.zip$`. `^deno-` cannot reach
+# `denort-` (position 4 is `r`, not `-`) nor `libdenort-` (starts `l`), and the
+# `\.zip$` tail excludes the per-asset `.sha256sum` sidecars, the
+# `*.from-<prev>.bsdiff` self-update patches, `deno_src.tar.gz` (underscore,
+# not hyphen) and the release-wide `lib.deno.d.ts`.
+#
+# Resolution verified BOTH ways against EVERY in-range release (v2.9.2, v2.9.3,
+# v2.9.4 — asset sets identical in all three): each of the six patterns matches
+# EXACTLY one asset, and every os/arch upstream publishes for `deno-*` is
+# declared here. A pattern matching zero is SILENTLY SKIPPED, not an error — it
+# would yield a green run with a missing platform.
+#
+# Staged rollout (Phase 10): linux first, darwin second, windows third. The
+# darwin/windows keys are pre-written and COMMENTED in BOTH `assets:` and
+# `platforms:` — an unmatched platform self-skips per version but still boots
+# its runner and greens having tested nothing, so staging assets alone does not
+# save the minutes.
+assets:
+  "linux/amd64+libc.glibc":
+    - "^deno-x86_64-unknown-linux-gnu\\.zip$"
+  "linux/arm64+libc.glibc":
+    - "^deno-aarch64-unknown-linux-gnu\\.zip$"
+  # darwin/amd64:
+  #   - "^deno-x86_64-apple-darwin\\.zip$"
+  # darwin/arm64:
+  #   - "^deno-aarch64-apple-darwin\\.zip$"
+  # windows/amd64:
+  #   - "^deno-x86_64-pc-windows-msvc\\.zip$"
+  # windows/arm64:
+  #   - "^deno-aarch64-pc-windows-msvc\\.zip$"
+
+asset_type:
+  # Every one of the six zips holds EXACTLY ONE member and no directory:
+  #   $ unzip -l deno-x86_64-unknown-linux-gnu.zip   →  1 file: deno
+  #   $ unzip -l deno-aarch64-pc-windows-msvc.zip    →  1 file: deno.exe
+  # There is no wrapper directory to strip, so `strip_components: 0` and the
+  # executable lands AT the content root — which is why metadata.json's PATH is
+  # a bare ${installPath} and `bin_scan` is `off` (see ../mirror-base.yml).
+  # `strip_components: 1` on a flat archive would delete the payload.
+  # Layout is uniform across all six platforms, so one metadata.json serves all
+  # of them; the `.exe` suffix lives only in the smoke test's platform branch,
+  # never in the `binaries` claim (which is bare by rule).
+  type: archive
+  strip_components: 0
+
+metadata:
+  default: metadata.json
+
+catalog:
+  logo: logo.svg
+
+versions:
+  # 2.9.2 is the honest floor for this matrix: every in-range release carries
+  # all six `deno-<triple>.zip` assets. (Below 2.9.0 the sibling `libdenort-*`
+  # family is absent — irrelevant to the patterns above, but the reason not to
+  # lower this floor casually.)
+  min: "2.9.2"
+  new_per_run: 10
+  poll_interval: "57 */6 * * *"
+
+tests:
+  # `script:` resolves from the REPOSITORY ROOT — unlike `metadata.default` and
+  # `catalog.logo` above, which resolve against this spec's own directory.
+  - name: smoke
+    script: deno/tests/smoke.star
+
+# ─── Platform matrix ────────────────────────────────────────────────────────
+#
+# Deliberately NOT inherited from ../mirror-base.yml — the container legs are
+# downstream of the libc measurement recorded above, so they belong beside it.
+# Nothing here restates a base block, so the shallow-merge trap cannot fire.
+platforms:
+  "linux/amd64+libc.glibc":
+    runner: ubuntu-latest
+    containers:
+      # No alpine: a `+libc.glibc` key has nothing to prove under musl, and the
+      # artifact demonstrably does not load there (evidence above `assets:`).
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "fedora:40",    shell: bash }
+  "linux/arm64+libc.glibc":
+    # arm64 container legs run natively — no qemu — so the runner arch must
+    # match the platform or the renderer reds the leg up front.
+    runner: ubuntu-24.04-arm
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "fedora:40",    shell: bash }
+  # darwin/amd64:
+  #   # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 —
+  #   # GitHub's native macos-13 Intel pool is exhausted and deadlocks push.
+  #   runner: macos-14
+  #   prefix: ["arch", "-x86_64"]
+  # darwin/arm64:
+  #   runner: macos-14
+  #   shell: bash
+  # windows/amd64:
+  #   runner: windows-latest
+  #   shell: pwsh
+  # windows/arm64:
+  #   # Native arm64 Windows runner — the amd64 pool cannot execute an ARM64 PE.
+  #   runner: windows-11-arm
+  #   shell: pwsh
+  # No `containers:` on darwin or windows — those runners have no Linux
+  # container engine, and the key is rejected at spec load.
+
+annotations:
+  # From the Phase 1.5 license gate:
+  #   $ gh api repos/denoland/deno/license --jq '.license.spdx_id'
+  #   MIT
+  org.opencontainers.image.licenses: "MIT"
+
+announce:
+  # Spelled out, not derived from target.repository — the logical name and the
+  # physical path are related by convention only.
+  package: denoland/deno
+  fork: ocx-contrib/index
